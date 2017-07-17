@@ -1,0 +1,36 @@
+#!/bin/sh
+
+/bin/busybox --install -s /bin
+
+# Mount dev, proc, sys
+mkdir dev proc sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p dev/pts
+mount -t devpts devpts /dev/pts
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+
+# Load modules
+modprobe sd_mod
+modprobe ahci
+modprobe crc32c_generic
+modprobe loop
+modprobe ext4
+
+ROOT=`cat /proc/cmdline |grep -o 'root=[^ ]*'|sed 's/root=//g'`
+IMAGE=`cat /proc/cmdline |grep -o 'image=[^ ]*'|sed 's/image=//g'`
+
+mkdir -p images
+mount ${ROOT} /images
+mkdir -p /new_root
+mount /images/${IMAGE} /new_root -o nobarrier
+mount --move /images /new_root/boot/images
+
+RESULT=`mount|grep -q new_root;echo $?`
+
+if [ "$RESULT" = "1" ]; then
+	exec setsid sh -c 'exec sh </dev/tty1 >/dev/tty1 2>&1'
+fi
+
+exec switch_root /new_root /sbin/init
+
