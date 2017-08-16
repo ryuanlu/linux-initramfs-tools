@@ -1,14 +1,17 @@
 #!/bin/sh
 
 /bin/busybox --install -s /bin
+clear
 
 # Mount dev, proc, sys
-mkdir dev proc sys
+mkdir proc sys
 mount -t devtmpfs devtmpfs /dev
 mkdir -p dev/pts
 mount -t devpts devpts /dev/pts
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
+
+echo 0 > /proc/sys/kernel/printk
 
 # Load modules
 modprobe sd_mod
@@ -21,16 +24,19 @@ ROOT=`cat /proc/cmdline |grep -o 'root=[^ ]*'|sed 's/root=//g'`
 IMAGE=`cat /proc/cmdline |grep -o 'image=[^ ]*'|sed 's/image=//g'`
 
 mkdir -p images
-mount ${ROOT} /images
+mount ${ROOT} /images -o discard,noatime
 mkdir -p /new_root
-mount /images/${IMAGE} /new_root -o nobarrier
-mount --move /images /new_root/boot/images
+mount /images/${IMAGE} /new_root -o nobarrier,discard,noatime
 
 RESULT=`mount|grep -q new_root;echo $?`
 
 if [ "$RESULT" = "1" ]; then
+	modprobe ohci_pci
+	modprobe usbhid
+	modprobe hid_generic
 	exec setsid sh -c 'exec sh </dev/tty1 >/dev/tty1 2>&1'
 fi
 
+echo 4 > /proc/sys/kernel/printk
 exec switch_root /new_root /sbin/init
 

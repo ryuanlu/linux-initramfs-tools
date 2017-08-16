@@ -1,6 +1,7 @@
 #!/bin/sh
 
-DATA_ROOT="/Qnap/Projects/linux-initramfs-tools"
+DATA_ROOT="$PWD"
+MODULE_LIST="$DATA_ROOT/modules"
 
 KERNEL_VERSION="$1"
 ROOTFS_INITRD="/tmp/initrd-$$"
@@ -9,42 +10,51 @@ if [ "${KERNEL_VERSION}" = "" ]; then
 	KERNEL_VERSION=`uname -r`
 fi
 
+get_all_modules ()
+{
+	MODULES=`cat "$MODULE_LIST" |sort|uniq`
+	for M in $MODULES
+	do
+		M=`echo "$M"|tr '-' '_'`
+		DEP=`cat /lib/modules/$1/modules.dep|grep /$M.ko:`
+		if [ "$DEP" = "" ]; then
+			M=`echo "$M"|tr '_' '-'`
+			DEP=`cat /lib/modules/$1/modules.dep|grep /$M.ko:`
+		fi
+
+		DEP_MODULES=`echo "$DEP" |awk -F": " '{print $2}'| tr ' ' '\n'|sed 's,.*/,,g'`
+		echo "$M.ko"
+		echo "$DEP_MODULES"
+	done |sort|sed '/^$/d'|uniq
+}
+
+copy_all_modules ()
+{
+	ALL_MODULES=`get_all_modules $1`
+	for M in $ALL_MODULES
+	do
+		find /lib/modules/$1/ -type f -name $M -exec cp -a {} lib/modules/$1/ \;
+	done|sort|uniq
+}
 
 mkdir -p ${ROOTFS_INITRD}
 mount -t tmpfs tmpfs ${ROOTFS_INITRD}
 
 ORIGIN_PWD=$PWD
 
-INCLUDED_MODULES="sd_mod
-scsi_mod
-ahci
-libahci
-libata
-loop
-ext4
-mbcache
-fscrypto
-jbd2
-crc16
-crc32c_generic"
-
 cd ${ROOTFS_INITRD}
 
 mkdir -p bin
 cp -a /bin/busybox bin/
 ln -s /bin/busybox bin/sh
-cp -a ${DATA_ROOT}/init ./
+cp -a ${ORIGIN_PWD}/init ./
 
 mkdir -p lib/modules/${KERNEL_VERSION}
-
-for MODULE in ${INCLUDED_MODULES}
-do
-	find /lib/modules/${KERNEL_VERSION} -name ${MODULE}.ko -exec cp -a {} lib/modules/${KERNEL_VERSION} \;
-done
+copy_all_modules ${KERNEL_VERSION}
 
 /bin/busybox depmod -a -b ${ROOTFS_INITRD} ${KERNEL_VERSION}
 
-find .|cpio -o -H newc|xz -T 0 --check=crc32 > ${ORIGIN_PWD}/initrd-${KERNEL_VERSION}.img
+find .|cpio -o -H newc > ${ORIGIN_PWD}/initrd.img-${KERNEL_VERSION}
 
 cd ${ORIGIN_PWD}
 

@@ -1,0 +1,8 @@
+sd_mod
+ahci
+crc32c_generic
+loop
+ext4
+usbhid
+hid_generic
+ohci_pci
