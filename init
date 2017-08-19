@@ -28,6 +28,11 @@ mount ${ROOT} /images -o discard,noatime
 mkdir -p /new_root
 mount /images/${IMAGE} /new_root -o nobarrier,discard,noatime
 
+BOOT_PARTITION=`awk '$2 ~ /^[\/]boot$/ {print $1} ' /new_root/etc/fstab| tr -d '"'`
+BOOT_MOUNT_OPTIONS=`awk '$2 ~ /^[\/]boot$/ {print $4} ' /new_root/etc/fstab`
+mount $BOOT_PARTITION /new_root/boot -o $BOOT_MOUNT_OPTIONS
+mount --move /images /new_root/boot/images
+
 RESULT=`mount|grep -q new_root;echo $?`
 
 if [ "$RESULT" = "1" ]; then
