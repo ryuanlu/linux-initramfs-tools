@@ -1,25 +1,49 @@
 #!/bin/sh
 
-DATA_ROOT="$PWD"
-MODULE_LIST="$DATA_ROOT/modules"
+DEFAULT_MODULES=`sed '/^# DEFAULT MODULE LIST START #$/,/^# DEFAULT MODULE LIST END #$/!d' $0 |sed '/^#/d'|sort|uniq`
+MODULE_LIST="/etc/initramfs-tools/modules"
 
-KERNEL_VERSION="$1"
+OPTS=`getopt -o k:r -- "$@" 2>/dev/null`
+
+while true
+do
+	case "$1" in
+		-k)
+			KERNEL_VERSION="$2"
+			shift 2
+			;;
+		-r)
+			ROOT_PATH="$2"
+			shift 2
+			;;
+		*)
+			[ "$1" != "" ] && shift || break
+			;;
+	esac
+done
+
+
+
 ROOTFS_INITRD="/tmp/initrd-$$"
 
 if [ "${KERNEL_VERSION}" = "" ]; then
 	KERNEL_VERSION=`uname -r`
 fi
 
+if [ "${ROOT_PATH}" = "" ]; then
+	ROOT_PATH="/"
+fi
+
 get_all_modules ()
 {
-	MODULES=`cat "$MODULE_LIST" |sort|uniq`
+	MODULES="`cat "$MODULE_LIST"|sed '/^#/d'|sort|uniq` $DEFAULT_MODULES"
 	for M in $MODULES
 	do
 		M=`echo "$M"|tr '-' '_'`
-		DEP=`cat /lib/modules/$1/modules.dep|grep /$M.ko:`
+		DEP=`cat $1/lib/modules/$2/modules.dep|grep /$M.ko:`
 		if [ "$DEP" = "" ]; then
 			M=`echo "$M"|tr '_' '-'`
-			DEP=`cat /lib/modules/$1/modules.dep|grep /$M.ko:`
+			DEP=`cat $1/lib/modules/$2/modules.dep|grep /$M.ko:`
 		fi
 
 		DEP_MODULES=`echo "$DEP" |awk -F": " '{print $2}'| tr ' ' '\n'|sed 's,.*/,,g'`
@@ -30,10 +54,10 @@ get_all_modules ()
 
 copy_all_modules ()
 {
-	ALL_MODULES=`get_all_modules $1`
+	ALL_MODULES=`get_all_modules $1 $2`
 	for M in $ALL_MODULES
 	do
-		find /lib/modules/$1/ -type f -name $M -exec cp -a {} lib/modules/$1/ \;
+		find $1/lib/modules/$2/ -type f -name $M -exec cp -a {} lib/modules/$2/ \;
 	done|sort|uniq
 }
 
@@ -50,14 +74,29 @@ ln -s /bin/busybox bin/sh
 cp -a ${ORIGIN_PWD}/init ./
 
 mkdir -p lib/modules/${KERNEL_VERSION}
-copy_all_modules ${KERNEL_VERSION}
+copy_all_modules ${ROOT_PATH} ${KERNEL_VERSION}
 
 /bin/busybox depmod -a -b ${ROOTFS_INITRD} ${KERNEL_VERSION}
 
-find .|cpio -o -H newc > ${ORIGIN_PWD}/initrd.img-${KERNEL_VERSION}
+find .|cpio -o -H newc > ../initrd.img-${KERNEL_VERSION}
+cp -i ../initrd.img-${KERNEL_VERSION} ${ROOT_PATH}/boot/
 
 cd ${ORIGIN_PWD}
 
 umount ${ROOTFS_INITRD}
 rm -rf ${ROOTFS_INITRD}
+
+exit 0
+# SCRIPT END #
+# DEFAULT MODULE LIST START #
+sd_mod
+ahci
+crc32c_generic
+loop
+ext4
+usbhid
+hid_generic
+ohci_pci
+vfat
+# DEFAULT MODULE LIST END #
 
