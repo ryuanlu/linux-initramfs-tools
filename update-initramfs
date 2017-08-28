@@ -2,7 +2,8 @@
 
 SELF_REALPATH=`realpath $0`
 MODULE_LIST="/etc/initramfs-tools/modules"
-OPTS=`getopt -o k:r -- "$@" 2>/dev/null`
+OPTS=`getopt -o k:r:f -- "$@" 2>/dev/null`
+ASK="-i"
 
 while true
 do
@@ -14,6 +15,10 @@ do
 		-r)
 			ROOT_PATH="$2"
 			shift 2
+			;;
+		-f)
+			ASK=""
+			shift
 			;;
 		*)
 			[ "$1" != "" ] && shift || break
@@ -78,7 +83,7 @@ copy_all_modules ${ROOT_PATH} ${KERNEL_VERSION}
 /bin/busybox depmod -a -b ${ROOTFS_INITRD} ${KERNEL_VERSION}
 
 find .|cpio -o -H newc > ../initrd.img-${KERNEL_VERSION}
-cp -i ../initrd.img-${KERNEL_VERSION} ${ROOT_PATH}/boot/
+cp ${ASK} ../initrd.img-${KERNEL_VERSION} ${ROOT_PATH}/boot/
 
 cd ${ORIGIN_PWD}
 
