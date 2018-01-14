@@ -1,8 +1,5 @@
 #!/bin/sh
 
-MAX_MOUNT_RETRY_TIMES=50
-MOUNT_RETRY_INTERVAL=0.1
-
 SELF_REALPATH=`realpath $0`
 MODULE_LIST="/etc/initramfs-tools/modules"
 OPTS=`getopt -o k:r:f -- "$@" 2>/dev/null`
@@ -120,6 +117,9 @@ vfat
 # DEFAULT MODULE LIST END #
 # init START #
 #!/bin/sh
+
+MAX_MOUNT_RETRY_TIMES=50
+MOUNT_RETRY_INTERVAL=0.1
 
 /bin/busybox --install -s /bin
 echo -e "\e[?25l"
